@@ -5,6 +5,7 @@ Monitor Apache ActiveMQ's health, queuesizes and subscribers. The plugin makes u
 ## Requirements (tested with):
 - ActiveMQ starting from version 5.8
 - Python 2.7
+- Python 3.6
 - nagiosplugin 1.2.2
 
 nagiosplugin is a Python Framework designed for Nagios Plugins written in Python.
@@ -46,7 +47,7 @@ For releases without Hawtio, this paramter can be omitted and defaults to ```api
 
 ## Checks
 
-This Plugin currently support 4 different checks listed below.
+This Plugin currently support the checks listed below.
 All checks return UNKNOWN if the broker isn't reachable on the network.
 
 #### queuesize
@@ -54,6 +55,16 @@ All checks return UNKNOWN if the broker isn't reachable on the network.
 - Additional parameters:
  - ```-w WARN``` specifies the Warning threshold (default 10)
  - ```-c CRIT``` specifies the Critical threshold (default 100)
+ - ```QUEUE``` - specify queue name to check (see additional explanations below)
+- If queuesize is called with NO queue parameter then ALL queues are checked (excluding queues whose name start with 'ActiveMQ').
+- If queuesize is called WITH a queue then this explicit queue name is checked.
+ - A given queue name can also contain shell-like wildcards like ```*``` and ```?```
+
+#### queueage
+- Check the age of the oldest message in one or more Queues.
+- Additional parameters:
+ - ```-w WARN``` specifies the Warning threshold, in minutes (default 10)
+ - ```-c CRIT``` specifies the Critical threshold, in minutes (default 100)
  - ```QUEUE``` - specify queue name to check (see additional explanations below)
 - If queuesize is called with NO queue parameter then ALL queues are checked (excluding queues whose name start with 'ActiveMQ').
 - If queuesize is called WITH a queue then this explicit queue name is checked.

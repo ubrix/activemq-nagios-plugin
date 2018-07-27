@@ -66,8 +66,8 @@ All checks return UNKNOWN if the broker isn't reachable on the network.
  - ```-w WARN``` specifies the Warning threshold, in minutes (default 10)
  - ```-c CRIT``` specifies the Critical threshold, in minutes (default 100)
  - ```QUEUE``` - specify queue name to check (see additional explanations below)
-- If queuesize is called with NO queue parameter then ALL queues are checked (excluding queues whose name start with 'ActiveMQ').
-- If queuesize is called WITH a queue then this explicit queue name is checked.
+- If queueage is called with NO queue parameter then ALL queues are checked (excluding queues whose name start with 'ActiveMQ').
+- If queueage is called WITH a queue then this explicit queue name is checked.
  - A given queue name can also contain shell-like wildcards like ```*``` and ```?```
 
 #### health
@@ -120,6 +120,8 @@ All checks return UNKNOWN if the broker isn't reachable on the network.
  - ```./check_activemq.py queuesize TEST```
 - the queue sizes of all queues starting with TEST
  - ```./check_activemq.py -w 30 -c 100 queuesize "TEST*"```
+- the queue age of the queue TEST
+ - ```./check_activemq.py queueage TEST```
 - the overall health of the ActiveMQ Broker
  - ```./check_activemq.py health```
 - that ```Spongebob``` is a subscriber of ```BikiniBottom```

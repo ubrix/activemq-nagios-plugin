@@ -122,9 +122,8 @@ def queueage(args):
                             or not self.pattern):
                         queue_oldest_msg = queue_1stmsg_json(args, queue_name)
 
-                        queue_oldest_javatimestamp = queue_oldest_msg[0]['jMSTimestamp']
-                        queue_oldest_time = datetime.utcfromtimestamp(queue_oldest_javatimestamp / 1000) if queue_oldest_msg \
-                            else utcnow
+                        queue_oldest_javatimestamp = queue_oldest_msg[0]['jMSTimestamp'] if queue_oldest_msg else 0
+                        queue_oldest_time = datetime.utcfromtimestamp(queue_oldest_javatimestamp / 1000) if queue_oldest_msg else utcnow
 
                         queue_age_minutes = (utcnow - queue_oldest_time).seconds // 60
 

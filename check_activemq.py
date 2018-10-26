@@ -125,7 +125,7 @@ def queueage(args):
                         queue_oldest_javatimestamp = queue_oldest_msg[0]['jMSTimestamp'] if queue_oldest_msg else 0
                         queue_oldest_time = datetime.utcfromtimestamp(queue_oldest_javatimestamp / 1000) if queue_oldest_msg else utcnow
 
-                        queue_age_minutes = (utcnow - queue_oldest_time).total_seconds() // 60
+                        queue_age_minutes = int((utcnow - queue_oldest_time).total_seconds() // 60)
 
                         yield np.Metric('Queue Age of %s' % queue_name,
                                         queue_age_minutes, min=0, context='age')

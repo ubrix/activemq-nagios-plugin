@@ -68,18 +68,20 @@ def loadJson(srcurl):
 
 
 def queue_1stmsg_json(args, queue):
-    try:
-        url = ("http://" + args.host + ":" + str(args.port) + "/api/jolokia/")
-        params = {'maxDepth': '10', 'maxCollectionSize': '1', 'ignoreErrors': 'true'}
-        headers = {'content-type': 'application/json'}
-        data = {"type": "exec",
-                "mbean": "org.apache.activemq:type=Broker,brokerName=localhost,destinationType=Queue,destinationName=" + queue,
-                "operation": "browseMessages()"}
-        r = requests.post(url, params=params, auth=(args.user, args.pwd), headers=headers, data=json.dumps(data),
-                          timeout=get_timeout())
-        return r.json()['value'] if r.status_code == requests.codes.ok else None
-    except:
-        return None
+    url = ("http://" + args.host + ":" + str(args.port) + "/api/jolokia/")
+    params = {'maxDepth': '10', 'maxCollectionSize': '1', 'ignoreErrors': 'true'}
+    headers = {'content-type': 'application/json'}
+    data = {"type": "exec",
+            "mbean": "org.apache.activemq:type=Broker,brokerName=localhost,destinationType=Queue,destinationName=" + queue,
+            "operation": "browseMessages()"}
+    r = requests.post(url, params=params, auth=(args.user, args.pwd), headers=headers, data=json.dumps(data),
+                      timeout=get_timeout())
+
+    if r.status_code == requests.codes.ok:
+        if r.json()['status'] == 200:
+            return r.json()['value']
+
+    raise Exception(r.json())
 
 
 def queueage(args):
@@ -120,6 +122,7 @@ def queueage(args):
                     queue_name = queue['objectName'].split(',')[1].split('=')[1]
                     if (self.pattern and fnmatch.fnmatch(queue_name, self.pattern)
                             or not self.pattern):
+
                         queue_oldest_msg = queue_1stmsg_json(args, queue_name)
 
                         queue_oldest_javatimestamp = queue_oldest_msg[0]['jMSTimestamp'] if queue_oldest_msg else 0
@@ -135,8 +138,9 @@ def queueage(args):
                 yield np.Metric('Decoding Json FAILED: ' + str(e), -1, context='age')
             except KeyError as e:
                 yield np.Metric('Getting Queue(s) FAILED: ' + str(e), -1, context='age')
-            except:
-                yield np.Metric('Getting Queue(s) FAILED', -1, context='age')
+            except Exception, e:
+                yield np.Metric('Unexpected Error: ' + str(e), -1, context='age')
+
 
 
     class ActiveMqQueueAgeSummary(np.Summary):

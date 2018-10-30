@@ -156,7 +156,7 @@ def queue_oldestmsg_timestamp_JSP(args, queue):
         if p.tables[0][0][6] == 'Timestamp':
             messages_tables = p.tables[0]
             del messages_tables[0] ## delete header titles
-            timestamps = sorted(list( (datetime.strptime('%s' % t[6], '%Y-%m-%d %H:%M:%S:%f GMT') for t in messages_tables) ) ) ## get a sorted list of timestamps
+            timestamps = sorted(list( (datetime.strptime('%s' % t[6], '%Y-%m-%d %H:%M:%S:%f %Z') for t in messages_tables) ) ) ## get a sorted list of timestamps
             return timestamps[0] if timestamps else None
 
     raise Exception("Broker API error - tried with JSP but got no results")

@@ -32,19 +32,24 @@ import nagiosplugin as np
 PLUGIN_VERSION = "0.8"
 PREFIX = 'org.apache.activemq:'
 
-
 ## Dirty workaround for brokers with missing jars (java.lang.NoClassDefFoundError)
-from HTMLParser import HTMLParser
+try:
+    from html.parser import HTMLParser
+except ImportError:
+    from HTMLParser import HTMLParser
 
 JSP_ERROR = None
+
+
 class HTMLTableParser(HTMLParser):
     """ This class serves as a html table parser. It is able to parse multiple
     tables which you feed in. You can access the result per .tables field.
     """
+
     def __init__(
-        self,
-        decode_html_entities=False,
-        data_separator=' ',
+            self,
+            decode_html_entities=False,
+            data_separator=' ',
     ):
 
         HTMLParser.__init__(self)
@@ -102,8 +107,6 @@ class HTMLTableParser(HTMLParser):
             self._current_table = []
 
 
-
-
 def make_url(args, dest):
     return (
         (args.jolokia_url + ('' if args.jolokia_url[-1] == '/' else '/') + dest)
@@ -139,13 +142,13 @@ def loadJson(srcurl):
 
 
 def queue_oldestmsg_timestamp_JSP(args, queue):
-#
-# Normally Jolokia API would return the oldest message with browseMessages()
-# Unfortunately Broker may be misconfigured with some missing JARs to interpret custom JMS Objects
-# While browsing the queue with OpenWire can get passed over these errors, using REST API would throw a (java.lang.NoClassDefFoundError)
-# If we detect this error, here we try a workaround: get the message from the BROWSE.JSP page of admin gui
-# It's really ugly and slow, but at least it produces some useful output
-#
+    #
+    # Normally Jolokia API would return the oldest message with browseMessages()
+    # Unfortunately Broker may be misconfigured with some missing JARs to interpret custom JMS Objects
+    # While browsing the queue with OpenWire can get passed over these errors, using REST API would throw a (java.lang.NoClassDefFoundError)
+    # If we detect this error, here we try a workaround: get the message from the BROWSE.JSP page of admin gui
+    # It's really ugly and slow, but at least it produces some useful output
+    #
     url = ("http://" + args.host + ":" + str(args.port) + "/admin/browse.jsp?JMSDestination=" + queue)
     headers = {'content-type': 'application/json'}
     r = requests.get(url, auth=(args.user, args.pwd), headers=headers, timeout=get_timeout())
@@ -155,12 +158,12 @@ def queue_oldestmsg_timestamp_JSP(args, queue):
         p.feed(r.content.decode('utf-8'))
         if p.tables[0][0][6] == 'Timestamp':
             messages_tables = p.tables[0]
-            del messages_tables[0] ## delete header titles
-            timestamps = sorted(list( (datetime.strptime('%s' % t[6], '%Y-%m-%d %H:%M:%S:%f %Z') for t in messages_tables) ) ) ## get a sorted list of timestamps
+            del messages_tables[0]  ## delete header titles
+            timestamps = sorted(list((datetime.strptime('%s' % t[6], '%Y-%m-%d %H:%M:%S:%f GMT') for t in
+                                      messages_tables)))  ## get a sorted list of timestamps
             return timestamps[0] if timestamps else None
 
     raise Exception("Broker API error - tried with JSP but got no results")
-
 
 
 def queue_oldestmsg_timestamp(args, queue):
@@ -173,7 +176,6 @@ def queue_oldestmsg_timestamp(args, queue):
     r = requests.post(url, params=params, auth=(args.user, args.pwd), headers=headers, data=json.dumps(data),
                       timeout=get_timeout())
 
-
     global JSP_ERROR
     if r.status_code == requests.codes.ok:
         if r.json()['status'] == 200:
@@ -181,24 +183,44 @@ def queue_oldestmsg_timestamp(args, queue):
             msg_javats = msg_json[0]['jMSTimestamp'] if msg_json else 0
             msg_ts = datetime.utcfromtimestamp(msg_javats / 1000)
             return msg_ts if msg_json else None
-        elif ((r.json()['status'] == 500) and (r.json()['error_type'] == 'java.lang.NoClassDefFoundError')): ## workaround with JSP page
-            JSP_ERROR = r.json()['error'] # will report the missing class so broker can get a chance to be fixed
+        elif ((r.json()['status'] == 500) and (
+                r.json()['error_type'] == 'java.lang.NoClassDefFoundError')):  # workaround with JSP page
+            JSP_ERROR = r.json()['error']  # will report the missing class so broker can get a chance to be fixed
             return queue_oldestmsg_timestamp_JSP(args, queue)
 
 
 def queueage(args):
     class ActiveMqQueueAgeContext(np.ScalarContext):
+
         def evaluate(self, metric, resource):
             if metric.value < 0:
                 return self.result_cls(np.Unknown, metric=metric)
 
+            # CRITICAL
             if metric.value >= self.critical.end:
-                return self.result_cls(np.Critical, ActiveMqQueueAgeContext.fmt_violation(self.critical.end), metric)
+                if args.queue:
+                    return self.result_cls(np.Critical, 'Queue %s is %d minutes old (W=%d,C=%d)' %
+                                           (args.queue, metric.value, self.warning.end, self.critical.end), metric)
+                else:
+                    return self.result_cls(np.Critical, 'Some queue is %d minutes old (W=%d,C=%d)' %
+                                           (metric.value, self.warning.end, self.critical.end), metric)
 
+            # WARNING
             if metric.value >= self.warning.end:
-                return self.result_cls(np.Warn, ActiveMqQueueAgeContext.fmt_violation(self.warning.end), metric)
+                if args.queue:
+                    return self.result_cls(np.Warn, 'Queue %s is %d minutes old (W=%d,C=%d)' %
+                                           (args.queue, metric.value, self.warning.end, self.critical.end), metric)
+                else:
+                    return self.result_cls(np.Warn, 'Some queue is %d minutes old (W=%d,C=%d)' %
+                                           (metric.value, self.warning.end, self.critical.end), metric)
 
-            return self.result_cls(np.Ok, None, metric)
+            # OK
+            if args.queue:
+                return self.result_cls(np.Ok, 'Queue %s is %d minutes old (W=%d,C=%d)' %
+                                       (args.queue, metric.value, self.warning.end, self.critical.end), metric)
+            else:
+                return self.result_cls(np.Ok, 'All queues are younger than %d minutes (W=%d,C=%d)' %
+                                       (self.warning.end, self.warning.end, self.critical.end), metric)
 
         def describe(self, metric):
             if metric.value < 0:
@@ -207,7 +229,8 @@ def queueage(args):
 
         @staticmethod
         def fmt_violation(max_value):
-            return 'Queue is older than %d minutes' % max_value
+            queue_name = args.queue if args.queue else '<some queues>'
+            return 'Queue %s older than %d minutes' % (queue_name, max_value)
 
     class ActiveMqQueueAge(np.Resource):
         def __init__(self, pattern=None):
@@ -222,15 +245,12 @@ def queueage(args):
                     return
                 for queue in queues_json['value']['Queues']:
                     queue_name = queue['objectName'].split(',')[1].split('=')[1]
-                    if (self.pattern and fnmatch.fnmatch(queue_name, self.pattern)
-                            or not self.pattern):
-
+                    if self.pattern and fnmatch.fnmatch(queue_name, self.pattern) or not self.pattern:
                         queue_oldest_time = queue_oldestmsg_timestamp(args, queue_name)
                         queue_oldest_time = queue_oldest_time if queue_oldest_time else utcnow
                         queue_age_minutes = int((utcnow - queue_oldest_time).total_seconds() // 60)
 
-                        yield np.Metric( ('[E] %s ' % JSP_ERROR if JSP_ERROR else '') + 'Queue Age of %s' % queue_name,
-                                        queue_age_minutes, min=0, context='age')
+                        yield np.Metric('Minutes', queue_age_minutes, min=0, context='age')
             except IOError as e:
                 yield np.Metric('Fetching network FAILED: ' + str(e), -1, context='age')
             except ValueError as e:
@@ -240,19 +260,14 @@ def queueage(args):
             except Exception as e:
                 yield np.Metric('Unexpected Error: ' + str(e), -1, context='age')
 
-
-
     class ActiveMqQueueAgeSummary(np.Summary):
         def ok(self, results):
-            if len(results) > 1:
-                lenQ = str(len(results))
-                minQ = str(min([r.metric.value for r in results]))
-                avgQ = str(sum([r.metric.value for r in results]) / len(results))
-                maxQ = str(max([r.metric.value for r in results]))
-                return ('Checked ' + lenQ + ' queues with ages min/avg/max = '
-                        + '/'.join([minQ, avgQ, maxQ]))
-            else:
-                return super(ActiveMqQueueAgeSummary, self).ok(results)
+            return results.first_significant.hint + (
+                ' BUT values retrieved via JSP pages due to: %s' % JSP_ERROR if JSP_ERROR else '')
+
+        def problem(self, results):
+            return results.first_significant.hint + (
+                ' and values retrieved via JSP pages due to: %s' % JSP_ERROR if JSP_ERROR else '')
 
     np.Check(
         ActiveMqQueueAge(args.queue) if args.queue else ActiveMqQueueAge(),
@@ -307,7 +322,6 @@ def queuesize(args):
                 yield np.Metric('Decoding Json FAILED: ' + str(e), -1, context='size')
             except KeyError as e:
                 yield np.Metric('Getting Queue(s) FAILED: ' + str(e), -1, context='size')
-
 
     class ActiveMqQueueSizeSummary(np.Summary):
         def ok(self, results):

@@ -267,7 +267,7 @@ def queueage(args):
 
         def problem(self, results):
             return results.first_significant.hint + (
-                ' and values retrieved via JSP pages due to: %s' % JSP_ERROR if JSP_ERROR else '')
+                ' and values retrieved via JSP pages due to: %s' % JSP_ERROR if JSP_ERROR else '') if results.first_significant.hint else "Could not retrieve data"
 
     np.Check(
         ActiveMqQueueAge(args.queue) if args.queue else ActiveMqQueueAge(),

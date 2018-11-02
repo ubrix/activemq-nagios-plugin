@@ -31,6 +31,7 @@ import nagiosplugin as np
 
 PLUGIN_VERSION = "0.8"
 PREFIX = 'org.apache.activemq:'
+args_timeout = 5
 
 ## Dirty workaround for brokers with missing jars (java.lang.NoClassDefFoundError)
 try:
@@ -135,7 +136,7 @@ def health_url(args):
 
 def loadJson(srcurl):
     try:
-        r = requests.get(srcurl, timeout=get_timeout())
+        r = requests.get(srcurl, timeout=args_timeout)
         return r.json() if r.status_code == requests.codes.ok else None
     except:
         return None
@@ -151,7 +152,7 @@ def queue_oldestmsg_timestamp_JSP(args, queue):
     #
     url = ("http://" + args.host + ":" + str(args.port) + "/admin/browse.jsp?JMSDestination=" + queue)
     headers = {'content-type': 'application/json'}
-    r = requests.get(url, auth=(args.user, args.pwd), headers=headers, timeout=get_timeout())
+    r = requests.get(url, auth=(args.user, args.pwd), headers=headers, timeout=args_timeout)
 
     if r.status_code == requests.codes.ok:
         p = HTMLTableParser()
@@ -174,7 +175,7 @@ def queue_oldestmsg_timestamp(args, queue):
             "mbean": "org.apache.activemq:type=Broker,brokerName=localhost,destinationType=Queue,destinationName=" + queue,
             "operation": "browseMessages()"}
     r = requests.post(url, params=params, auth=(args.user, args.pwd), headers=headers, data=json.dumps(data),
-                      timeout=get_timeout())
+                      timeout=args_timeout)
 
     global JSP_ERROR
     if r.status_code == requests.codes.ok:
@@ -273,7 +274,7 @@ def queueage(args):
         ActiveMqQueueAge(args.queue) if args.queue else ActiveMqQueueAge(),
         ActiveMqQueueAgeContext('age', args.warn, args.crit),
         ActiveMqQueueAgeSummary()
-    ).main(timeout=get_timeout())
+    ).main(timeout=args_timeout+1)
 
 
 def queuesize(args):
@@ -339,12 +340,7 @@ def queuesize(args):
         ActiveMqQueueSize(args.queue) if args.queue else ActiveMqQueueSize(),
         ActiveMqQueueSizeContext('size', args.warn, args.crit),
         ActiveMqQueueSizeSummary()
-    ).main(timeout=get_timeout())
-
-
-# when debugging the application, set the TIMEOUT env variable to 0 to disable the timeout during check execution
-def get_timeout():
-    return int(os.environ.get('TIMEOUT')) if 'TIMEOUT' in os.environ else 10
+    ).main(timeout=args_timeout)
 
 
 def health(args):
@@ -377,7 +373,7 @@ def health(args):
     np.Check(
         ActiveMqHealth(),  ## check ONE queue
         ActiveMqHealthContext('health')
-    ).main(timeout=get_timeout())
+    ).main(timeout=args_timeout)
 
 
 def subscriber(args):
@@ -463,7 +459,7 @@ def subscriber(args):
     np.Check(
         ActiveMqSubscriber(),
         ActiveMqSubscriberContext('subscriber')
-    ).main(timeout=get_timeout())
+    ).main(timeout=args_timeout)
 
 
 def exists(args):
@@ -509,7 +505,7 @@ def exists(args):
     np.Check(
         ActiveMqExists(),
         ActiveMqExistsContext('exists')
-    ).main(timeout=get_timeout())
+    ).main(timeout=args_timeout)
 
 
 def subscriber_pending(args):
@@ -558,7 +554,7 @@ def subscriber_pending(args):
     np.Check(
         ActiveMqSubscriberPending(),
         ActiveMqSubscriberPendingContext('subscriber_pending', args.warn, args.crit),
-    ).main(timeout=get_timeout())
+    ).main(timeout=args_timeout)
 
 
 def dlq(args):
@@ -634,7 +630,7 @@ def dlq(args):
         ActiveMqDlq(args.prefix, args.cachedir),
         ActiveMqDlqScalarContext('dlq'),
         ActiveMqDlqSummary()
-    ).main(timeout=get_timeout())
+    ).main(timeout=args_timeout)
 
 
 def add_warn_crit(parser, what):
@@ -661,6 +657,8 @@ def main():
                             help='ActiveMQ Server Hostname (default: %(default)s)')
     connection.add_argument('--port', type=int, default=8161,
                             help='ActiveMQ Server Port (default: %(default)s)')
+    connection.add_argument('--timeout', type=int, default=5,
+                            help='Timeout (default: %(default)s)')
     connection.add_argument('-b', '--brokerName', default='localhost',
                             help='Name of your broker. (default: %(default)s)')
     connection.add_argument('--url-tail',
@@ -771,6 +769,8 @@ def main():
     args = parser.parse_args()
     # call the determined function with the parsed arguments
     try:
+        global args_timeout
+        args_timeout = args.timeout
         args.func(args)
     except AttributeError:  # https://bugs.python.org/issue16308
         parser.print_help()

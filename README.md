@@ -43,6 +43,7 @@ For releases without Hawtio, this paramter can be omitted and defaults to ```api
 - ```--port``` specifies the Port
 - ```--user``` specifies the Username of ActiveMQ's Web Console
 - ```--pwd``` specifies the Password
+- ```--timeout``` specifies the Timeout in seconds
 
 
 ## Checks

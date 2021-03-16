@@ -251,7 +251,7 @@ def queueage(args):
                         queue_oldest_time = queue_oldest_time if queue_oldest_time else utcnow
                         queue_age_minutes = int((utcnow - queue_oldest_time).total_seconds() // 60)
 
-                        yield np.Metric('Minutes', queue_age_minutes, min=0, context='age')
+                        yield np.Metric('%s[minutes]' % queue_name, queue_age_minutes, min=0, context='age')
             except IOError as e:
                 yield np.Metric('Fetching network FAILED: ' + str(e), -1, context='age')
             except ValueError as e:
